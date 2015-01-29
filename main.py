@@ -10,14 +10,33 @@ import os.path
 DUMMY_EDITOR_FILE_TYPE = 6
 
 
-class DummyEditorTextDropTarget(wx.TextDropTarget):
+class DummyEditorRichTextDropTarget(wx.DropTarget):
     def __init__(self, owner):
-        super(DummyEditorTextDropTarget, self).__init__()
+        super(DummyEditorRichTextDropTarget, self).__init__()
+        self.owner = owner
+
+    def OnDrop(self, x, y):
+        if wx.TheClipboard.IsOpened():
+            print "Open"
+        elif wx.TheClipboard.Open():
+            print "kunda"
+            if wx.TheClipboard.IsSupported(wx.DataFormat(wx.DF_FILENAME)):
+                print "support"
+            wx.TheClipboard.Close()
+        return False
+
+
+class DummyEditorFileDropTarget(wx.FileDropTarget):
+    def __init__(self, owner):
+        super(DummyEditorFileDropTarget, self).__init__()
         self.owner = owner
 
     # noinspection PyMethodOverriding
-    def OnDropText(self, x_coord, y_coord, data):
-        self.owner.WriteText(data)
+    def OnDropFiles(self, x_coord, y_coord, files):
+        for f in files:
+            if os.path.splitext(f)[1] == ".txt":
+                child = DummyEditorChildFrame(self.owner, f, (400, 300))
+                child.Show()
 
 
 class DummyEditorFileFormatHandler(wx.richtext.RichTextHTMLHandler):
@@ -43,7 +62,7 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
                                                       wx.DefaultSize, 0 | wx.VSCROLL | wx.HSCROLL | wx.NO_BORDER |
                                                       wx.WANTS_CHARS)
 
-        self.m_text_editor.SetDropTarget(DummyEditorTextDropTarget(self.m_text_editor))
+        self.m_text_editor.SetDropTarget(DummyEditorRichTextDropTarget(self.m_text_editor))
         if file_path:
             self.m_text_editor.LoadFile(file_path)
         main_sizer.Add(self.m_text_editor, 1, wx.EXPAND | wx.ALL, 0)
@@ -63,6 +82,7 @@ class DummyEditorFrame(wx.MDIParentFrame):
         self.bind_events()
         self.color_dialog = None
         wx.richtext.RichTextBuffer_AddHandler(DummyEditorFileFormatHandler())
+        self.SetDropTarget(DummyEditorFileDropTarget(self))
 
     def create_menu(self):
         self.create_file_menu()
