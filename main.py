@@ -10,20 +10,49 @@ import os.path
 DUMMY_EDITOR_FILE_TYPE = 6
 
 
-class DummyEditorRichTextDropTarget(wx.DropTarget):
+class DummyEditorDataObjectComposite(wx.DataObjectComposite):
+    def __init__(self):
+        super(DummyEditorDataObjectComposite, self).__init__()
+        self.file_data = wx.FileDataObject()
+        self.text_data = wx.TextDataObject()
+        self.Add(self.file_data, True)
+        self.Add(self.text_data)
+
+    # noinspection PyMethodOverriding
+    def GetObject(self, receive_format, direction=wx.DataObject.Get):
+        format_type = receive_format.GetType()
+        if format_type == wx.DF_FILENAME:
+            return self.file_data
+        elif format_type == wx.DF_TEXT or format_type == wx.DF_UNICODETEXT:
+            return self.text_data
+        return None
+
+
+class DummyEditorMultiDropTarget(wx.DropTarget):
     def __init__(self, owner):
-        super(DummyEditorRichTextDropTarget, self).__init__()
+        super(DummyEditorMultiDropTarget, self).__init__()
+
+        self.data_object = DummyEditorDataObjectComposite()
+        self.SetDataObject(self.data_object)
         self.owner = owner
 
-    def OnDrop(self, x, y):
-        if wx.TheClipboard.IsOpened():
-            print "Open"
-        elif wx.TheClipboard.Open():
-            print "kunda"
-            if wx.TheClipboard.IsSupported(wx.DataFormat(wx.DF_FILENAME)):
-                print "support"
-            wx.TheClipboard.Close()
-        return False
+    def OnData(self, x, y, drag_result):
+        self.GetData()
+        receive_format = self.data_object.GetReceivedFormat()
+        format_type = receive_format.GetType()
+        data = self.data_object.GetObject(receive_format)
+        if format_type == wx.DF_FILENAME:
+            files = data.GetFilenames()
+            for f in files:
+                if os.path.splitext(f)[1] == ".txt":
+                    child = DummyEditorChildFrame(self.owner.GetParent(), f, (400, 300))
+                    child.Show()
+        elif format_type == wx.DF_TEXT or format_type == wx.DF_UNICODETEXT:
+            self.owner.m_text_editor.WriteText(data.GetText())
+        else:
+            print format_type
+
+        return drag_result
 
 
 class DummyEditorFileDropTarget(wx.FileDropTarget):
@@ -40,8 +69,20 @@ class DummyEditorFileDropTarget(wx.FileDropTarget):
 
 
 class DummyEditorFileFormatHandler(wx.richtext.RichTextHTMLHandler):
-    def __init__(self, name=wx.EmptyString, ext="dft", text_type=DUMMY_EDITOR_FILE_TYPE):
-        super(DummyEditorFileFormatHandler, self).__init__(name, ext, text_type)
+    def __init__(self):
+        super(DummyEditorFileFormatHandler, self).__init__("HTML", "html", wx.richtext.RICHTEXT_TYPE_HTML)
+
+    def LoadFile(*args, **kwargs):
+        print "kkkk"
+
+    def CanHandle(*args, **kwargs):
+        print "kkkk"
+
+    def CanLoad(*args, **kwargs):
+        print "kkkk"
+
+    def GetExtension(*args, **kwargs):
+        print "kkkk"
 
 
 class DummyEditorChildFrame(wx.MDIChildFrame):
@@ -50,6 +91,7 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
         if file_path:
             file_name = os.path.basename(file_path)
         super(DummyEditorChildFrame, self).__init__(parent, title=file_name, size=winsize)
+        self.parent = parent
 
         self.find_replace_data = wx.FindReplaceData()
         self.font_data = wx.FontData()
@@ -59,17 +101,21 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
         self.Bind(wx.EVT_ACTIVATE, self.on_activate, self, self.GetId())
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         self.m_text_editor = wx.richtext.RichTextCtrl(self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition,
-                                                      wx.DefaultSize, 0 | wx.VSCROLL | wx.HSCROLL | wx.NO_BORDER |
-                                                      wx.WANTS_CHARS)
+                                                      wx.DefaultSize,  wx.VSCROLL | wx.HSCROLL | wx.NO_BORDER |
+                                                      wx.WANTS_CHARS|wx.richtext.RE_MULTILINE)
 
-        self.m_text_editor.SetDropTarget(DummyEditorRichTextDropTarget(self.m_text_editor))
+        self.m_text_editor.SetDropTarget(DummyEditorMultiDropTarget(self))
         if file_path:
-            self.m_text_editor.LoadFile(file_path)
+            self.m_text_editor.LoadFile(file_path, wx.richtext.RICHTEXT_TYPE_ANY)
         main_sizer.Add(self.m_text_editor, 1, wx.EXPAND | wx.ALL, 0)
         self.SetSizer(main_sizer)
 
     def on_activate(self, event):
         self.m_text_editor.SetFocus()
+
+    # noinspection PyMethodOverriding
+    def GetParent(self):
+        return self.parent
 
 
 class DummyEditorFrame(wx.MDIParentFrame):
@@ -81,7 +127,6 @@ class DummyEditorFrame(wx.MDIParentFrame):
         self.SetMenuBar(self.menu_bar)
         self.bind_events()
         self.color_dialog = None
-        wx.richtext.RichTextBuffer_AddHandler(DummyEditorFileFormatHandler())
         self.SetDropTarget(DummyEditorFileDropTarget(self))
 
     def create_menu(self):
@@ -187,7 +232,7 @@ class DummyEditorFrame(wx.MDIParentFrame):
         child.Show()
 
     def on_open_menu(self, event):
-        file_path = wx.LoadFileSelector(u"Zvolte soubor", u"TXT formát (*.txt)|*.txt|Dummy editor formát (*.dft)|*.dft")
+        file_path = wx.LoadFileSelector(u"Zvolte soubor", u"TXT formát (*.txt)|*.txt|Dummy formát text (*.html)|*.html")
         if file_path:
             child = DummyEditorChildFrame(self, file_path, (400, 300))
             child.Show()
@@ -199,7 +244,7 @@ class DummyEditorFrame(wx.MDIParentFrame):
     def on_save_as_menu(self, event):
         active_child = self.get_active_child()
         if active_child is not None:
-            file_path = wx.SaveFileSelector(u"Uložit jako", u"TXT formát (*.txt)|*.txt|Dummy editor formát (*.de)|*.de")
+            file_path = wx.SaveFileSelector(u"Uložit jako", u"TXT formát (*.txt)|*.txt|Dummy formát text (*.html)|*.html")
             if file_path:
                 active_child.m_text_editor.SaveFile(file_path)
                 active_child.m_text_editor.SetFilename(file_path)
@@ -272,6 +317,7 @@ class DummyEditorFrame(wx.MDIParentFrame):
 
 class DummyEditor(wx.App):
     def OnInit(self):
+        wx.richtext.RichTextBuffer.AddHandler(DummyEditorFileFormatHandler())
         frame = DummyEditorFrame("Dummy Editor")
         frame.Show()
         return True
