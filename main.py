@@ -105,7 +105,6 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
         except:
             pass
 
-
     def on_close(self, event):
         self.parent.close_child(self)
 
