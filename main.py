@@ -72,18 +72,6 @@ class DummyEditorFileFormatHandler(wx.richtext.RichTextHTMLHandler):
     def __init__(self):
         super(DummyEditorFileFormatHandler, self).__init__("HTML", "html", wx.richtext.RICHTEXT_TYPE_HTML)
 
-    def LoadFile(*args, **kwargs):
-        print "kkkk"
-
-    def CanHandle(*args, **kwargs):
-        print "kkkk"
-
-    def CanLoad(*args, **kwargs):
-        print "kkkk"
-
-    def GetExtension(*args, **kwargs):
-        print "kkkk"
-
 
 class DummyEditorChildFrame(wx.MDIChildFrame):
     def __init__(self, parent, file_path, winsize):
@@ -99,6 +87,7 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
 
         self.Bind(wx.EVT_SET_FOCUS, self.on_activate, self, self.GetId())
         self.Bind(wx.EVT_ACTIVATE, self.on_activate, self, self.GetId())
+        self.Bind(wx.EVT_CLOSE, self.on_close, None, wx.ID_ANY)
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         self.m_text_editor = wx.richtext.RichTextCtrl(self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition,
                                                       wx.DefaultSize,  wx.VSCROLL | wx.HSCROLL | wx.NO_BORDER |
@@ -111,7 +100,14 @@ class DummyEditorChildFrame(wx.MDIChildFrame):
         self.SetSizer(main_sizer)
 
     def on_activate(self, event):
-        self.m_text_editor.SetFocus()
+        try:
+            self.m_text_editor.SetFocus()
+        except:
+            pass
+
+
+    def on_close(self, event):
+        self.parent.close_child(self)
 
     # noinspection PyMethodOverriding
     def GetParent(self):
